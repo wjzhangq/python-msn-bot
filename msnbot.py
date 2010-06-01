@@ -56,7 +56,6 @@ def email2nick(email):
 
 # message
 def cb_msg(md, type, tid, params, sbd):
-    global last_received
     t = tid.split(' ')
     email = t[0]
 
@@ -205,25 +204,10 @@ while True:
     except KeyboardInterrupt:
         quit()
 
-    if timeout and len(fds[0] + fds[1]) == 0:
-        # timeout, set auto away
-        if m.status == 'NLN':
-            m.change_status('away')
-            auto_away = 1
-            debug('\rAutomatically changing status to away')
-
     for i in fds[0] + fds[1]:       # see msnlib.msnd.pollable.__doc__
         try:
             m.read(i)
-
-            # see if we got all the user list, so we can
-            # change our initial status (doing it earlier
-            # as we used to seems to break things for some
-            # people)
-            if not list_complete and \
-                    m.lst_total == m.syn_total:
-                list_complete = 1
-                debug('list_complete is ok');
+            debug('m read');
         except ('SocketError', socket.error), err:
             if i != m:
                 if i.msgqueue:
