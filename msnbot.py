@@ -3,6 +3,7 @@
 
 import msnlib, msncb
 import sys, select, socket, time
+import threading
 
 m = msnlib.msnd()
 m.cb = msncb.cb()
@@ -11,6 +12,8 @@ m.encoding = 'utf-8'
 timeout = 300
 m.email = 'test@zhangwenjin.com'
 m.pwd = '123456'
+HOST = '127.0.0.1'
+PORT = 8888
 
 def null(s):
     "Null function, useful to void debug ones"
@@ -129,7 +132,8 @@ def cb_msg(md, type, tid, params, sbd):
     else:
         # messages
         m.users[email].priv['typing'] = 0
-        debug(email + '-*-' + '-*-'.join(lines));
+        print(email)
+        print(lines)
         m.sendmsg(email, lines[-1])
     msncb.cb_msg(md, type, tid, params, sbd)
 
@@ -142,7 +146,7 @@ def cb_err(md, errno, params):
     else:
         desc = msncb.error_table[errno]
     desc = '\rServer sent error %d: %s' % (errno, desc)
-    perror(desc)
+    debug(desc)
     msncb.cb_err(md, errno, params)
 m.cb.err = cb_err
 
@@ -154,16 +158,29 @@ def cb_add(md, type, tid, params):
         email = t[2]
         nick = urllib.unquote(t[3])
     if type == 'RL':
-        out = '\r' + c.blue + c.bold + ('%s (%s) ' % (email, nick)) \
-            + c.magenta + 'has added you to his contact list'
+        out = ('%s (%s) ' % (email, nick)) \
+            + 'has added you to his contact list'
         debug(out)
         beep()
     elif type == 'FL':
-        out = '\r' + c.blue + c.bold + ('%s (%s) ' % (email, nick)) \
-            + c.magenta + 'has been added to your contact list'
+        out = ('%s (%s) ' % (email, nick)) \
+            + 'has been added to your contact list'
         debug(out)
     msncb.cb_add(md, type, tid, params)
 m.cb.add = cb_add
+
+def parse_cmd(str):
+    data = str.split(':', 2)
+    if len(data) == 3:
+        return data
+    return None
+
+
+mySocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    mySocket.bind((HOST, PORT))
+except socket.error:
+    sys.exit('call to bind fail')
 
 try:
     m.login()
@@ -194,30 +211,62 @@ else:
 
 m.change_status('online');
 
-while True:
-    fds = m.pollable()
-    infd = fds[0]
-    outfd = fds[1]
-    
-    try:
-        fds = select.select(infd, outfd, [], timeout)
-    except KeyboardInterrupt:
-        quit()
 
-    for i in fds[0] + fds[1]:       # see msnlib.msnd.pollable.__doc__
-        try:
-            m.read(i)
-            debug('m read');
-        except ('SocketError', socket.error), err:
-            if i != m:
-                if i.msgqueue:
-                    nick = email2nick(i.emails[0])
-                    dubeg("\rConnection with %s closed - the following messages couldn't be sent:" % (nick))
-                    for msg in i.msgqueue:
-                        debug(msg )
-                m.close(i)
-            else:
-                debug('\nMain socket closed (%s)' % str(err))
-                quit(1)
-        except 'XFRError', err:
-            debug("\rXFR Error: %s" % str(err))
+#muti threading
+class msn_wait(threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self, name='msn wait')
+    
+    def run(self):
+        global m
+        while True:
+            fds = m.pollable()
+            infd = fds[0]
+            outfd = fds[1]
+            
+            try:
+                fds = select.select(infd, outfd, [], timeout)
+            except KeyboardInterrupt:
+                quit()
+
+            for i in fds[0] + fds[1]:       # see msnlib.msnd.pollable.__doc__
+                try:
+                    m.read(i)
+                    debug('m read');
+                except ('SocketError', socket.error), err:
+                    if i != m:
+                        if i.msgqueue:
+                            nick = email2nick(i.emails[0])
+                            dubeg("\rConnection with %s closed - the following messages couldn't be sent:" % (nick))
+                            for msg in i.msgqueue:
+                                debug(msg )
+                        m.close(i)
+                    else:
+                        debug('\nMain socket closed (%s)' % str(err))
+                        quit(1)
+                except 'XFRError', err:
+                    debug("\rXFR Error: %s" % str(err))
+
+th = msn_wait();
+th.start();
+
+
+mySocket.listen(10)
+conn, addr = mySocket.accept()
+while True:
+    data = conn.recv(10240)
+    if not data: 
+        break
+    pcmd = parse_cmd(data)
+    if not pcmd:
+        conn.send('unkown!')
+    else:
+        if pcmd[0] == 'send':
+            email = pcmd[1]
+            msg = pcmd[2]
+            pstr = m.sendmsg(email, msg)
+            print pstr
+            conn.send('ok')
+        else:
+            conn.send(pcmd[0])
+conn.close()
