@@ -2,7 +2,7 @@
 # -*- coding:utf-8 -*-
 
 import msnlib, msncb
-import sys, select, socket, time
+import sys, select, socket, time, re
 import threading
 
 m = msnlib.msnd()
@@ -170,10 +170,33 @@ def cb_add(md, type, tid, params):
 m.cb.add = cb_add
 
 def parse_cmd(str):
-    data = str.split(':', 2)
-    if len(data) == 3:
-        return data
-    return None
+    tmp = str.split(':', 1)
+    if len(tmp) == 1:
+        msg = 'Unrecognized Format';
+    else:
+        if tmp[0] == 'send':
+            tmp1 = tmp[1].split(':', 1)
+            if len(tmp1) == 1:
+                msg = 'Format error<send:email:msg>'
+            else:
+                email = tmp1[0]
+                body = tmp1[1]
+                if not re.match(r'[\w\_\.]+@[\w\_]+(\.[\w\_]+){1,3}', email):
+                    msg = 'Eamil not invalid'
+                else:
+                    r = m.sendmsg(email, body)
+                    if r == 1:
+                        msg =  'Message for %s queued for delivery' % email
+                    elif r == 2:
+                        result = 'Message for %s delivery' % email
+                    elif r == -2:
+                        msg = 'Message too big'
+                    else:
+                        msg = 'Error %d sending message' % r
+        else:
+            msg = 'Unrecognized Command'
+    
+    return msg
 
 
 mySocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -181,35 +204,6 @@ try:
     mySocket.bind((HOST, PORT))
 except socket.error:
     sys.exit('call to bind fail')
-
-try:
-    m.login()
-    debug('login done')
-except 'AuthError', info:
-    errno = int(info[0])
-    if not msncb.error_table.has_key(errno):
-        desc = 'Unknown'
-    else:
-        desc = msncb.error_table[errno]
-    debug('Error: %s (%s)' % (desc, errno))
-    quit(1)
-except KeyboardInterrupt:
-    quit()
-except ('SocketError', socket.error), info:
-    debug('Network error: ' + str(info))
-    quit(1)
-except:
-    debug('Exception logging in')
-    quit(1)
-
-# call sync to get the lists and refresh
-if m.sync():
-    debug('sync done')
-    list_complete = 0
-else:
-    debug('Error syncing users')
-
-m.change_status('online');
 
 
 #muti threading
@@ -219,6 +213,35 @@ class msn_wait(threading.Thread):
     
     def run(self):
         global m
+        try:
+            m.login()
+            debug('login done')
+        except 'AuthError', info:
+            errno = int(info[0])
+            if not msncb.error_table.has_key(errno):
+                desc = 'Unknown'
+            else:
+                desc = msncb.error_table[errno]
+            debug('Error: %s (%s)' % (desc, errno))
+            quit(1)
+        except KeyboardInterrupt:
+            quit()
+        except ('SocketError', socket.error), info:
+            debug('Network error: ' + str(info))
+            quit(1)
+        except:
+            debug('Exception logging in')
+            quit(1)
+
+        # call sync to get the lists and refresh
+        if m.sync():
+            debug('sync done')
+            list_complete = 0
+        else:
+            debug('Error syncing users')
+
+        m.change_status('online');
+
         while True:
             fds = m.pollable()
             infd = fds[0]
@@ -252,21 +275,18 @@ th.start();
 
 
 mySocket.listen(10)
-conn, addr = mySocket.accept()
 while True:
-    data = conn.recv(10240)
-    if not data: 
-        break
-    pcmd = parse_cmd(data)
-    if not pcmd:
-        conn.send('unkown!')
-    else:
-        if pcmd[0] == 'send':
-            email = pcmd[1]
-            msg = pcmd[2]
-            pstr = m.sendmsg(email, msg)
-            print pstr
-            conn.send('ok')
-        else:
-            conn.send(pcmd[0])
-conn.close()
+    try:
+        conn, addr = mySocket.accept()
+        data = conn.recv(10240)
+        if not data: 
+            continue
+        msg = parse_cmd(data)
+        conn.send(msg)
+        conn.close()
+    except KeyboardInterrupt:
+        debug('ctrl + c')
+        quit()
+    except:
+        debug('Main has terminal')
+        quit(1)
