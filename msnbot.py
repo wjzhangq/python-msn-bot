@@ -170,6 +170,7 @@ def cb_add(md, type, tid, params):
 m.cb.add = cb_add
 
 def parse_cmd(str):
+    global m
     tmp = str.split(':', 1)
     if len(tmp) == 1:
         msg = 'Unrecognized Format';
@@ -184,7 +185,10 @@ def parse_cmd(str):
                 if not re.match(r'[\w\_\.]+@[\w\_]+(\.[\w\_]+){1,3}', email):
                     msg = 'Eamil not invalid'
                 else:
+                    mylock.acquire()
+                    print m.users
                     r = m.sendmsg(email, body)
+                    mylock.release()
                     if r == 1:
                         msg =  'Message for %s queued for delivery' % email
                     elif r == 2:
@@ -202,6 +206,7 @@ def parse_cmd(str):
 mySocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 try:
     mySocket.bind((HOST, PORT))
+    debug('bind ' + HOST + ':' + str(PORT))
 except socket.error:
     sys.exit('call to bind fail')
 
@@ -251,11 +256,11 @@ class msn_wait(threading.Thread):
                 fds = select.select(infd, outfd, [], timeout)
             except KeyboardInterrupt:
                 quit()
-
             for i in fds[0] + fds[1]:       # see msnlib.msnd.pollable.__doc__
                 try:
+                    mylock.acquire()
                     m.read(i)
-                    debug('m read');
+                    mylock.release()
                 except ('SocketError', socket.error), err:
                     if i != m:
                         if i.msgqueue:
@@ -270,6 +275,9 @@ class msn_wait(threading.Thread):
                 except 'XFRError', err:
                     debug("\rXFR Error: %s" % str(err))
 
+
+
+mylock = threading.RLock()
 th = msn_wait();
 th.start();
 
