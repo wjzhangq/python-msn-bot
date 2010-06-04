@@ -19,8 +19,8 @@ def null(s):
     "Null function, useful to void debug ones"
     pass
 
-msnlib.debug = null
-msncb.debug = null
+#msnlib.debug = null
+#msncb.debug = null
 
 def debug(str):
     print str + ''
@@ -194,7 +194,7 @@ def parse_cmd(str):
                     if r == 1:
                         msg =  'Message for %s queued for delivery' % email
                     elif r == 2:
-                        result = 'Message for %s delivery' % email
+                        msg = 'Message for %s delivery' % email
                     elif r == -2:
                         msg = 'Message too big'
                     else:
@@ -297,6 +297,8 @@ while True:
     except KeyboardInterrupt:
         debug('ctrl + c')
         quit()
-    except:
+    except Exception,e:
+        debug(str(e))
         debug('Main has terminal')
         quit(1)
+
