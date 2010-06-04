@@ -185,10 +185,10 @@ def parse_cmd(str):
                 if not re.match(r'[\w\_\.]+@[\w\_]+(\.[\w\_]+){1,3}', email):
                     msg = 'Eamil not invalid'
                 else:
-                    mylock.acquire()
-                    print m.users
+                    if m.users.has_key(email):
+                        m.users[email].priv['typing'] = 0
+                    m.change_status('online')
                     r = m.sendmsg(email, body)
-                    mylock.release()
                     if r == 1:
                         msg =  'Message for %s queued for delivery' % email
                     elif r == 2:
@@ -211,90 +211,77 @@ except socket.error:
     sys.exit('call to bind fail')
 
 
-#muti threading
-class msn_wait(threading.Thread):
-    def __init__(self):
-        threading.Thread.__init__(self, name='msn wait')
-    
-    def run(self):
-        global m
-        try:
-            m.login()
-            debug('login done')
-        except 'AuthError', info:
-            errno = int(info[0])
-            if not msncb.error_table.has_key(errno):
-                desc = 'Unknown'
-            else:
-                desc = msncb.error_table[errno]
-            debug('Error: %s (%s)' % (desc, errno))
-            quit(1)
-        except KeyboardInterrupt:
-            quit()
-        except ('SocketError', socket.error), info:
-            debug('Network error: ' + str(info))
-            quit(1)
-        except:
-            debug('Exception logging in')
-            quit(1)
+try:
+    m.login()
+    debug('login done')
+except 'AuthError', info:
+    errno = int(info[0])
+    if not msncb.error_table.has_key(errno):
+        desc = 'Unknown'
+    else:
+        desc = msncb.error_table[errno]
+    debug('Error: %s (%s)' % (desc, errno))
+    quit(1)
+except KeyboardInterrupt:
+    quit()
+except ('SocketError', socket.error), info:
+    debug('Network error: ' + str(info))
+    quit(1)
+except:
+    debug('Exception logging in')
+    quit(1)
 
-        # call sync to get the lists and refresh
-        if m.sync():
-            debug('sync done')
-            list_complete = 0
-        else:
-            debug('Error syncing users')
+# call sync to get the lists and refresh
+if m.sync():
+    debug('sync done')
+    list_complete = 0
+else:
+    debug('Error syncing users')
 
-        m.change_status('online');
+m.change_status('online');
 
-        while True:
-            fds = m.pollable()
-            infd = fds[0]
-            outfd = fds[1]
-            
-            try:
-                fds = select.select(infd, outfd, [], timeout)
-            except KeyboardInterrupt:
-                quit()
-            for i in fds[0] + fds[1]:       # see msnlib.msnd.pollable.__doc__
-                try:
-                    mylock.acquire()
-                    m.read(i)
-                    mylock.release()
-                except ('SocketError', socket.error), err:
-                    if i != m:
-                        if i.msgqueue:
-                            nick = email2nick(i.emails[0])
-                            dubeg("\rConnection with %s closed - the following messages couldn't be sent:" % (nick))
-                            for msg in i.msgqueue:
-                                debug(msg )
-                        m.close(i)
-                    else:
-                        debug('\nMain socket closed (%s)' % str(err))
-                        quit(1)
-                except 'XFRError', err:
-                    debug("\rXFR Error: %s" % str(err))
+#listen
+mySocket.listen(1)
 
-
-
-mylock = threading.RLock()
-th = msn_wait();
-th.start();
-
-
-mySocket.listen(10)
 while True:
+    fds = m.pollable()
+    infd = fds[0]
+    outfd = fds[1]
+    infd.append(mySocket.fileno())
+    
     try:
-        conn, addr = mySocket.accept()
-        data = conn.recv(10240)
-        if not data: 
-            continue
-        msg = parse_cmd(data)
-        conn.send(msg)
-        conn.close()
+        fds = select.select(infd, outfd, [], timeout)
     except KeyboardInterrupt:
-        debug('ctrl + c')
         quit()
-    except:
-        debug('Main has terminal')
-        quit(1)
+    for i in fds[0] + fds[1]:       # see msnlib.msnd.pollable.__doc__
+        if i == mySocket.fileno():
+            try:
+                conn, addr = mySocket.accept()
+                data = conn.recv(10240)
+                if not data: 
+                    continue
+                msg = parse_cmd(data)
+                conn.send(msg)
+                conn.close()
+            except KeyboardInterrupt:
+                debug('ctrl + c')
+                quit()
+            except:
+                debug('Main has terminal')
+                quit(1)
+        else:
+            try:
+                m.read(i)
+            except ('SocketError', socket.error), err:
+                if i != m:
+                    if i.msgqueue:
+                        nick = email2nick(i.emails[0])
+                        dubeg("\rConnection with %s closed - the following messages couldn't be sent:" % (nick))
+                        for msg in i.msgqueue:
+                            debug(msg )
+                    m.close(i)
+                else:
+                    debug('\nMain socket closed (%s)' % str(err))
+                    quit(1)
+            except 'XFRError', err:
+                debug("\rXFR Error: %s" % str(err))
