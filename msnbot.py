@@ -19,8 +19,8 @@ def null(s):
     "Null function, useful to void debug ones"
     pass
 
-#msnlib.debug = null
-#msncb.debug = null
+msnlib.debug = null
+msncb.debug = null
 
 def debug(str):
     print str + ''
