@@ -4,6 +4,8 @@
 import msnlib, msncb
 import sys, select, socket, time, re
 import threading
+import json, urllib
+
 
 m = msnlib.msnd()
 m.cb = msncb.cb()
@@ -14,6 +16,7 @@ m.email = 'test@zhangwenjin.com'
 m.pwd = '123456'
 HOST = '127.0.0.1'
 PORT = 8888
+CMD = 'php -f "' + os.getcwd() + os.sep + 'r.php"'
 
 def null(s):
     "Null function, useful to void debug ones"
@@ -132,9 +135,13 @@ def cb_msg(md, type, tid, params, sbd):
     else:
         # messages
         m.users[email].priv['typing'] = 0
-        print(email)
-        print(lines)
-        m.sendmsg(email, lines[-1])
+        argv = []
+        argv.append(HOST)
+        arvg.append(PORT)
+        argv.append(email)
+        argv.extend(lines)
+        fp = subprocess.Popen(CMD + ' ' + urllib.quote_plus(json.dumps(argv)), shell=True, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+        #m.sendmsg(email, lines[-1])
     msncb.cb_msg(md, type, tid, params, sbd)
 
 m.cb.msg = cb_msg
