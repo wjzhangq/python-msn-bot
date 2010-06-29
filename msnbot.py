@@ -2,9 +2,9 @@
 # -*- coding:utf-8 -*-
 
 import msnlib, msncb
-import sys, select, socket, time, re
+import os, sys, select, socket, time, re
 import threading
-import json, urllib
+import urllib,subprocess
 
 
 m = msnlib.msnd()
@@ -135,12 +135,11 @@ def cb_msg(md, type, tid, params, sbd):
     else:
         # messages
         m.users[email].priv['typing'] = 0
-        argv = []
-        argv.append(HOST)
-        arvg.append(PORT)
-        argv.append(email)
-        argv.extend(lines)
-        fp = subprocess.Popen(CMD + ' ' + urllib.quote_plus(json.dumps(argv)), shell=True, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
+        argv = [str(x) for x in lines]
+        argv.append(str(HOST))
+        argv.append(str(PORT))
+        argv.append(str(email))
+        fp = subprocess.Popen(CMD + ' "' + urllib.quote_plus('\n\r\n'.join(argv)) + '"', shell=True, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
         #m.sendmsg(email, lines[-1])
     msncb.cb_msg(md, type, tid, params, sbd)
 
