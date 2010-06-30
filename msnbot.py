@@ -16,7 +16,7 @@ m.email = 'test@zhangwenjin.com'
 m.pwd = '123456'
 HOST = '127.0.0.1'
 PORT = 8888
-CMD = 'php -f "' + os.getcwd() + os.sep + 'php' + os.sep + 'handle_msg.php.php"'
+CMD = 'php -f "' + os.getcwd() + os.sep + 'php' + os.sep + 'handle_msg.php"'
 
 def null(s):
     "Null function, useful to void debug ones"
