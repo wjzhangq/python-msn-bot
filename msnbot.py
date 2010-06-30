@@ -16,7 +16,7 @@ m.email = 'test@zhangwenjin.com'
 m.pwd = '123456'
 HOST = '127.0.0.1'
 PORT = 8888
-CMD = 'php -f "' + os.getcwd() + os.sep + 'r.php"'
+CMD = 'php -f "' + os.getcwd() + os.sep + 'php' + os.sep . 'handle_msg.php.php"'
 
 def null(s):
     "Null function, useful to void debug ones"
@@ -136,9 +136,9 @@ def cb_msg(md, type, tid, params, sbd):
         # messages
         m.users[email].priv['typing'] = 0
         argv = [str(x) for x in lines]
+        argv.append(str(email))
         argv.append(str(HOST))
         argv.append(str(PORT))
-        argv.append(str(email))
         fp = subprocess.Popen(CMD + ' "' + urllib.quote_plus('\n\r\n'.join(argv)) + '"', shell=True, stdout=subprocess.PIPE, stdin=subprocess.PIPE)
         #m.sendmsg(email, lines[-1])
     msncb.cb_msg(md, type, tid, params, sbd)
